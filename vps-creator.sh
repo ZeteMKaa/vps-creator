@@ -212,7 +212,7 @@ cat << EOF > /etc/nginx/sites-available/default
 	    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256';
 	    ssl_prefer_server_ciphers On;
 	    ssl_ecdh_curve secp384r1;
-	    ssl_certificate /root/.acme.sh/${HOST_DOMAIN}_ecc/fullchain.pem;
+	    ssl_certificate /root/.acme.sh/${HOST_DOMAIN}_ecc/fullchain.cer;
 	    ssl_certificate_key /root/.acme.sh/${HOST_DOMAIN}_ecc/${HOST_DOMAIN}.key;
 	    #ssl_trusted_certificate /etc/letsencrypt/live/${HOST_DOMAIN}/chain.pem;
 	    ssl_session_cache shared:SSL:128m;
