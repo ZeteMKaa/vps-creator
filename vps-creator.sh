@@ -106,7 +106,7 @@ apt install nginx php7.0-cli php7.0-curl php7.0-dev php7.0-zip php7.0-fpm php7.0
 
 # Installing additonal tools
 echo -e "\n$ACTION Installing additonal tooling ..."| pv -qL 40
-apt install locate curl fail2ban build-essential dnsutils letsencrypt htop expect git -y &> /dev/null
+apt install locate curl fail2ban build-essential dnsutils letsencrypt htop git -y &> /dev/null
 
 # Updating the system
 echo -e "\n$ACTION Updating the system ..."| pv -qL 40
