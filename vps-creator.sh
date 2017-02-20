@@ -184,7 +184,7 @@ echo -e "\n$ACTION Downloading acme.sh for Letsencrypt ..."| pv -qL 40
 git clone https://github.com/Neilpang/acme.sh.git /opt/acme.sh &> /dev/null
 
 echo -e "\n$ACTION Installing acme.sh ..."| pv -qL 40
-bash /opt/acme.sh/acme.sh --install &> dev/null
+bash /opt/acme.sh/acme.sh --install &> /dev/null
 
 echo -e "\n$ACTION Generating certificates ..."| pv -qL 40
 service nginx stop
