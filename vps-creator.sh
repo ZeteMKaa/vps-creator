@@ -150,7 +150,7 @@ echo -e "\n$QUESTION Where do you want me to deliver the alert emails?"| pv -qL 
 read EMAIL
 sed -i '/action   = iptables\[name=SSH, port=ssh, protocol=tcp\]/c\action   = iptables\[name=SSH, port=13322, protocol=tcp\]' /etc/fail2ban/jail.conf
 sed -i '/bantime  = 600/c\bantime = -1' /etc/fail2ban/jail.conf
-sed -i "/destemail = root@localhost/c\destemail = $email" /etc/fail2ban/jail.conf
+sed -i "/destemail = root@localhost/c\destemail = ${EMAIL}" /etc/fail2ban/jail.conf
 sed -i '/action = %(action_)s/c\action = %(action_mwl)s' /etc/fail2ban/jail.conf
 service fail2ban restart
 
@@ -175,7 +175,7 @@ echo -e "\n$ACTION Creating web root"| pv -qL 40
 mkdir -p /var/www/$HOST_DOMAIN/.well-known/acme-challenge
 	
 # Creating test file
-echo -e "\n$ACTION Creating test file as index.php in the webroot"| pv -qL 20
+echo -e "\n$ACTION Creating test file as index.php in the webroot"| pv -qL 40
 echo -e "<?php phpinfo() ?>" > /var/www/${HOST_DOMAIN}/index.php
 chown -R $NEW_USERNAME:www-data /var/www/$HOST_DOMAIN
 
