@@ -29,7 +29,7 @@ fi
 # Pimping root shell
 echo -e "\n$ACTION Tweaking bash"| pv -qL 40
 
-echo -e 'export PS1="\033[1m\\t\033[0m-\033[1m[\[\e[38;5;31m\]\u\[\e[m\]\033[1m]@\033[1m[\[\e[38;5;31m\]\h\[\e[m\]\033[1m]-\033[1m\w\033[0m#"' >> /root/.bashrc
+echo -e 'export PS1="\033[1m\\t\033[0m-\033[1m[\[\e[38;5;31m\]\u\[\e[m\]\033[1m]@\033[1m[\[\e[38;5;31m\]\h\[\e[m\]\033[1m]-\033[1m\w\033[0m# "' >> /root/.bashrc
 echo -e 'export EDITOR=/usr/bin/vim' >> /root/.bashrc
 echo -e "alias ll='ls -lah'" >> /root/.bashrc
 echo -e '
@@ -102,7 +102,7 @@ echo -e "\n$ACTION Firewall is active"| pv -qL 40
 # Installing LEMP stack with PHP7
 echo -e "\n$ACTION Updating repo and installing LEMP instance ..."| pv -qL 40
 apt update &> /dev/null 
-apt install nginx php7.0-cli php7.0-curl php7.0-dev php7.0-zip php7.0-fpm php7.0-gd php7.0-xml php7.0-mysql php7.0-mcrypt php7.0-mbstring php7.0-opcache mariadb-server mariadb-client -y &> /dev/null
+apt install nginx php7.0-cli php7.0-curl php7.0-dev php7.0-zip php7.0-fpm php7.0-gd php7.0-xml php7.0-xmlrpc php7.0-mysql php7.0-mcrypt php7.0-mbstring php7.0-opcache mariadb-server mariadb-client -y &> /dev/null
 
 # Installing additonal tools
 echo -e "\n$ACTION Installing additonal tooling ..."| pv -qL 40
@@ -188,7 +188,7 @@ bash /opt/acme.sh/acme.sh --install &> /dev/null
 
 echo -e "\n$ACTION Generating certificates ..."| pv -qL 40
 service nginx stop
-bash /opt/acme.sh/acme.sh --issue --standalone -d ${HOST_DOMAIN} --keylength ec-256
+bash /opt/acme.sh/acme.sh --issue --standalone -d ${HOST_DOMAIN} --keylength ec-256 &> /dev/null
 
 # Installing Nginx configuration with SSL
 cat << EOF > /etc/nginx/sites-available/default
@@ -206,6 +206,7 @@ cat << EOF > /etc/nginx/sites-available/default
 	    server_name ${HOST_DOMAIN};
 	    root /var/www/${HOST_DOMAIN};
 	    index index.php index.html;#
+
 	    # SSL config
 	    ssl_protocols TLSv1.2;
 	    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256';
@@ -213,10 +214,10 @@ cat << EOF > /etc/nginx/sites-available/default
 	    ssl_ecdh_curve secp384r1;
 	    ssl_certificate /root/.acme.sh/${HOST_DOMAIN}_ecc/fullchain.cer;
 	    ssl_certificate_key /root/.acme.sh/${HOST_DOMAIN}_ecc/${HOST_DOMAIN}.key;
-	    #ssl_trusted_certificate /etc/letsencrypt/live/${HOST_DOMAIN}/chain.pem;
 	    ssl_session_cache shared:SSL:128m;
 	    ssl_stapling on;
 	    ssl_stapling_verify on;#
+
 	    # Headers
 	    add_header Strict-Transport-Security "max-age=31557600; includeSubDomains";
 	    add_header X-Frame-Options DENY;
@@ -224,9 +225,9 @@ cat << EOF > /etc/nginx/sites-available/default
 	    add_header Referrer-Policy "no-referrer";
 	    add_header X-XSS-Protection "1; mode=block";
 	    add_header Access-Control-Allow-Origin null;#
-	    # Your favorite resolver may be used instead of the Google one below
 	    resolver 8.8.8.8 8.8.4.4 valid=300s;
 	    resolver_timeout 5s;#
+
 	    # Location config
 	    location ~ \.php$ {
 	        include snippets/fastcgi-php.conf;
@@ -238,13 +239,20 @@ cat << EOF > /etc/nginx/sites-available/default
 	    location '/.well-known/acme-challenge' {
 	        alias /var/www/${HOST_DOMAIN}/.well-known/acme-challenge;
 	    }
+	    location = / {try_files $uri $uri/ /index.php$is_args$args;}
+        location = /favicon.ico { log_not_found off; access_log off; }
+	    location = /robots.txt { log_not_found off; access_log off; allow all; }
+	    location ~* \.(css|gif|ico|jpeg|jpg|js|png)$ {
+	        expires max;
+	        log_not_found off;
+    	}
 	}
 
 EOF
 
 # starting nginx
 
-sed -i '/	    return 301 https://;/c\	    return 301 https://$server_name$request_uri;' /etc/nginx/sites-available/default
+sed -i '/	    return 301 https://;/c\	    return 301 https://${server_name}${request_uri};' /etc/nginx/sites-available/default
 sed -i '/        # server_tokens off;/c\        server_tokens off;' /etc/nginx/nginx.conf
 service nginx start
 
@@ -270,6 +278,72 @@ echo -e "\n$ACTION Performing PHP hardening"| pv -qL 40
 sed -i '/;cgi.fix_pathinfo=1/c\cgi.fix_pathinfo=0' /etc/php/7.0/fpm/php.ini
 systemctl restart php7.0-fpm
 
+
+# Install Wordpress
+echo -e "\n$ACTION Starting to install Wordpress"| pv -qL 40
+
+# Fixing database
+echo -e "\n$ACTION Prepping database"| pv -qL 40
+SECPASS2=`</dev/urandom tr -dc '!@#$%_A-Z-a-z-0-9' | head -c16; echo ""`
+echo $SECPASS2
+echo -e "\n$QUESTION Name of new database?"| pv -qL 40
+read DB_NAME
+echo -e "\n$QUESTION Name of DB user?"| pv -qL 40
+read DB_USER
+mysql --user=root -p <<_EOF_
+  CREATE DATABASE ${DB_NAME} DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+  GRANT ALL ON ${DB_NAME}.* TO '${DB_USER}'@'localhost' IDENTIFIED BY '${SECPASS2}';
+  FLUSH PRIVILEGES;
+_EOF_
+
+echo -e "
+# MySQL root
+User = root
+Pass = ${SECPASS}
+
+# MySQL Wordpress
+User = ${DB_USER}
+Pass = ${SECPASS2}
+DB = ${DB_NAME}
+
+" > /root/mysql_details
+
+
+# Downloading and installing Wordpress
+echo -e "\n$ACTION Downloading and installing Wordpress"| pv -qL 40
+cd /tmp
+curl -O https://wordpress.org/latest.tar.gz &> /dev/null
+tar xzvf latest.tar.gz &> /dev/null
+cp /tmp/wordpress/wp-config-sample.php /tmp/wordpress/wp-config.php
+mkdir /tmp/wordpress/wp-content/upgrade
+cp -a /tmp/wordpress/. /var/www/$HOST_DOMAIN
+chown -R $NEW_USERNAME:www-data /var/www/$HOST_DOMAIN
+find /var/www/$HOST_DOMAIN -type d -exec chmod g+s {} \; &> /dev/null
+chmod g+w /var/www/$HOST_DOMAIN/wp-content
+chmod -R g+w /var/www/$HOST_DOMAIN/wp-content/themes
+chmod -R g+w /var/www/$HOST_DOMAIN/wp-content/plugins
+
+# Configuring Wordpress
+SALT=`curl -s https://api.wordpress.org/secret-key/1.1/salt/`
+
+cat << EOF > /var/www/$HOST_DOMAIN/wp-config.php
+
+<?php
+define('DB_NAME', '${DB_NAME}');
+define('DB_USER', '${DB_USER}');
+define('DB_PASSWORD', '${SECPASS2}');
+define('DB_HOST', 'localhost');
+define('DB_CHARSET', 'utf8');
+define('DB_COLLATE', '');
+${SALT}
+$table_prefix  = 'wp_';
+define('WP_DEBUG', false);
+if ( !defined('ABSPATH') )
+        define('ABSPATH', dirname(__FILE__) . '/');
+require_once(ABSPATH . 'wp-settings.php');
+define('FS_METHOD', 'direct');
+
+EOF
 
 
 
