@@ -150,7 +150,7 @@ echo -e "\n$QUESTION Where do you want me to deliver the alert emails?"| pv -qL 
 read EMAIL
 sed -i '/action   = iptables\[name=SSH, port=ssh, protocol=tcp\]/c\action   = iptables\[name=SSH, port=13322, protocol=tcp\]' /etc/fail2ban/jail.conf
 sed -i '/bantime  = 600/c\bantime = -1' /etc/fail2ban/jail.conf
-sed -i "/destemail = root@localhost/c\destemail = ${EMAIL}" /etc/fail2ban/jail.conf
+sed -i "/destemail = root@localhost/c\destemail = $EMAIL" /etc/fail2ban/jail.conf
 sed -i '/action = %(action_)s/c\action = %(action_mwl)s' /etc/fail2ban/jail.conf
 service fail2ban restart
 
@@ -243,6 +243,9 @@ cat << EOF > /etc/nginx/sites-available/default
 EOF
 
 # starting nginx
+
+sed -i '/	    return 301 https://;/c\	    return 301 https://$server_name$request_uri;' /etc/nginx/sites-available/default
+sed -i '/        # server_tokens off;/c\        server_tokens off;' /etc/nginx/nginx.conf
 service nginx start
 
 # Securing MySQL/MariaDB
