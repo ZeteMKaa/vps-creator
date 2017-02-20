@@ -29,7 +29,7 @@ fi
 # Pimping root shell
 echo -e "\n$ACTION Tweaking bash"| pv -qL 40
 
-echo -e 'export PS1="\033[1m\t\033[0m-\033[1m[\[\e[38;5;31m\]\u\[\e[m\]\033[1m]@\033[1m[\[\e[38;5;31m\]\h\[\e[m\]\033[1m]-\033[1m\w\033[0m#"' >> /root/.bashrc
+echo -e 'export PS1="\033[1m\\t\033[0m-\033[1m[\[\e[38;5;31m\]\u\[\e[m\]\033[1m]@\033[1m[\[\e[38;5;31m\]\h\[\e[m\]\033[1m]-\033[1m\w\033[0m#"' >> /root/.bashrc
 echo -e 'export EDITOR=/usr/bin/vim' >> /root/.bashrc
 echo -e "alias ll='ls -lah'" >> /root/.bashrc
 echo -e '
@@ -170,146 +170,32 @@ fi
 
 
 
-	# Creating web dir
-	echo -e "\n$ACTION Creating web root"| pv -qL 40
-	mkdir /var/www/$HOST_DOMAIN 
-	mkdir /var/www/$HOST_DOMAIN/.well-known
-	mkdir /var/www/$HOST_DOMAIN/.well-known/acme-challenge
-    # Creating test file
-    echo -e "\n$ACTION Creating test file as index.php in the webroot"| pv -qL 20
-    echo -e "
-    <?php
-            phpinfo()
-    ?>" > /var/www/${HOST_DOMAIN}/index.php
-	chown -R $NEW_USERNAME:www-data /var/www/$HOST_DOMAIN
+# Creating web dir
+echo -e "\n$ACTION Creating web root"| pv -qL 40
+mkdir -p /var/www/$HOST_DOMAIN/.well-known/acme-challenge
+	
+# Creating test file
+echo -e "\n$ACTION Creating test file as index.php in the webroot"| pv -qL 20
+echo -e "<?php phpinfo() ?>" > /var/www/${HOST_DOMAIN}/index.php
+chown -R $NEW_USERNAME:www-data /var/www/$HOST_DOMAIN
 
-	# Letsencrypt config
-	echo -e "\n$ACTION Downloading certbot for Letsencrypt ..."| pv -qL 40
-	git clone https://github.com/certbot/certbot /opt/letsencrypt &> /dev/null
+# Letsencrypt config
+echo -e "\n$ACTION Downloading acme.sh for Letsencrypt ..."| pv -qL 40
+git clone https://github.com/Neilpang/acme.sh.git /opt/acme.sh &> /dev/null
 
-	echo -e "\n$ACTION Creating certificate configuration file"| pv -qL 40
-	mkdir /etc/letsencrypt
-	mkdir /etc/letsencrypt/configs/
-	cat << EOF > /etc/letsencrypt/configs/$HOST_DOMAIN.conf
-	domains = ${HOST_DOMAIN}
-	rsa-key-size = 2048
-	email = ${EMAIL}
-	authenticator = webroot
-	webroot-path = /var/www/${HOST_DOMAIN}/
-EOF
-	echo -e "\n$ACTION Generating certificates ..."| pv -qL 40
-	/opt/letsencrypt/letsencrypt-auto certonly --agree-tos -c /etc/letsencrypt/configs/${HOST_DOMAIN}.conf 
+echo -e "\n$ACTION Installing acme.sh ..."| pv -qL 40
+bash /opt/acme.sh/acme.sh --install &> dev/null
 
-	# Creating crontab
-	echo -e "\n$ACTION Creating cronjob for certificate renew"| pv -qL 40
-	mkdir /var/log/letsencrypt
-	cat << EOF > /etc/cron.d/cert-renew
-	/opt/letsencrypt/certbot-auto --config /etc/letsencrypt/configs/${HOST_DOMAIN}.conf certonly
+echo -e "\n$ACTION Generating certificates ..."| pv -qL 40
+service nginx stop
+/root/.acme.sh/acme.sh --issue --standalone -d ${HOST_DOMAIN} --keylength ec-256
 
-	if [ $? -ne 0 ]
-	 then
-	        ERRORLOG=`tail /var/log/letsencrypt/letsencrypt.log`
-	        echo -e "The Let's Encrypt cert has not been renewed! \n \n" \
-	                 $ERRORLOG
-	 else
-	        service nginx force-reload
-	fi
-	exit 0
-EOF
-	(crontab -l 2>/dev/null; echo "0 0 1 JAN,MAR,MAY,JUL,SEP,NOV * /etc/cron.d/cert-renew") | crontab -
-
-
-	# Replacing default Nginx config 
-	mv /etc/nginx/sites-available/default /etc/nginx/sites-available/default.old
-	cat << EOF > /etc/nginx/sites-available/default
+# Installing Nginx configuration with SSL
+cat << EOF > /etc/nginx/sites-available/default
 
 	server{
 	    listen 80;
-	    #	return 301;
-	    server_name ${HOST_DOMAIN};
-	    root /var/www/${HOST_DOMAIN};
-	    index index.php index.html;
-	    }
-
-#	server{
-#	    listen 443 ssl http2;
-#	    server_name ${HOST_DOMAIN};
-#	    root /var/www/${HOST_DOMAIN};
-#	    index index.php index.html;#
-
-#	    # SSL config
-#	    ssl_protocols TLSv1.2;
-#	    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256';
-#	    ssl_prefer_server_ciphers On;
-#	    ssl_ecdh_curve secp384r1;
-#	    #ssl_certificate /etc/letsencrypt/live/${HOST_DOMAIN}/fullchain.pem;
-#	    #ssl_certificate_key /etc/letsencrypt/live/${HOST_DOMAIN}/privkey.pem;
-#	    #ssl_trusted_certificate /etc/letsencrypt/live/${HOST_DOMAIN}/chain.pem;
-#	    ssl_session_cache shared:SSL:128m;
-#	    ssl_stapling on;
-#	    ssl_stapling_verify on;#
-
-#	    # Headers
-#	    add_header Strict-Transport-Security "max-age=31557600; includeSubDomains";
-#	    add_header X-Frame-Options DENY;
-#	    add_header X-Content-Type-Options nosniff;
-#	    add_header Referrer-Policy "no-referrer";
-#	    add_header X-XSS-Protection "1; mode=block";
-#	    add_header Access-Control-Allow-Origin null;#
-
-#	    # Your favorite resolver may be used instead of the Google one below
-#	    resolver 8.8.8.8 8.8.4.4 valid=300s;
-#	    resolver_timeout 5s;#
-
-#	    # Location config
-#	    location ~ \.php$ {
-#	        include snippets/fastcgi-php.conf;
-#	        fastcgi_pass unix:/run/php/php7.0-fpm.sock;
-#	    }#
-
-#	    location ~ /\.ht {
-#	        deny all;
-#	    }#
-
-#	    location '/.well-known/acme-challenge' {
-#	        alias /var/www/${HOST_DOMAIN}/.well-known/acme-challenge;
-#	    }
-#	}
-
-EOF
-
-
-	service nginx restart
-
-# Securing MySQL/MariaDB
-
-echo -e "\n$ACTION Creating a secure password"| pv -qL 40
-SECPASS=`</dev/urandom tr -dc '!@#$%_A-Z-a-z-0-9' | head -c16; echo ""`
-echo $SECPASS
-echo -e "\n$ACTION Please copy the password if you need one"| pv -qL 40
-sleep 5
-echo -e "\n$ACTION Performing MySQL hardening"| pv -qL 40
-mysql --user=root <<_EOF_
-  UPDATE mysql.user SET Password=PASSWORD('${SECPASS}') WHERE User='root';
-  DELETE FROM mysql.user WHERE User='';
-  DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
-  DROP DATABASE IF EXISTS test;
-  DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
-  FLUSH PRIVILEGES;
-_EOF_
-
-# Securing PHP
-echo -e "\n$ACTION Performing PHP hardening"| pv -qL 40
-sed -i '/;cgi.fix_pathinfo=1/c\cgi.fix_pathinfo=0' /etc/php/7.0/fpm/php.ini
-systemctl restart php7.0-fpm
-
-# Restoring SSL connection on Nginx
-
-	cat << EOF > /etc/nginx/sites-available/default
-
-	server{
-	    listen 80;
-	    	return 301;
+	    return 301 https://$server_name$request_uri;
 	    #server_name ${HOST_DOMAIN};
 	    #root /var/www/${HOST_DOMAIN};
 	    #index index.php index.html;
@@ -325,9 +211,9 @@ systemctl restart php7.0-fpm
 	    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256';
 	    ssl_prefer_server_ciphers On;
 	    ssl_ecdh_curve secp384r1;
-	    ssl_certificate /etc/letsencrypt/live/${HOST_DOMAIN}/fullchain.pem;
-	    ssl_certificate_key /etc/letsencrypt/live/${HOST_DOMAIN}/privkey.pem;
-	    ssl_trusted_certificate /etc/letsencrypt/live/${HOST_DOMAIN}/chain.pem;
+	    ssl_certificate /root/.acme.sh/${HOST_DOMAIN}_ecc/fullchain.pem;
+	    ssl_certificate_key /root/.acme.sh/${HOST_DOMAIN}_ecc/${HOST_DOMAIN}.key;
+	    #ssl_trusted_certificate /etc/letsencrypt/live/${HOST_DOMAIN}/chain.pem;
 	    ssl_session_cache shared:SSL:128m;
 	    ssl_stapling on;
 	    ssl_stapling_verify on;#
@@ -355,5 +241,32 @@ systemctl restart php7.0-fpm
 	}
 
 EOF
+
+# starting nginx
+service nginx start
+
+# Securing MySQL/MariaDB
+
+echo -e "\n$ACTION Creating a secure password"| pv -qL 40
+SECPASS=`</dev/urandom tr -dc '!@#$%_A-Z-a-z-0-9' | head -c16; echo ""`
+echo $SECPASS
+echo -e "\n$ACTION Please copy the password if you need one"| pv -qL 40
+sleep 5
+echo -e "\n$ACTION Performing MySQL hardening"| pv -qL 40
+mysql --user=root <<_EOF_
+  UPDATE mysql.user SET Password=PASSWORD('${SECPASS}') WHERE User='root';
+  DELETE FROM mysql.user WHERE User='';
+  DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+  DROP DATABASE IF EXISTS test;
+  DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+  FLUSH PRIVILEGES;
+_EOF_
+
+# Securing PHP
+echo -e "\n$ACTION Performing PHP hardening"| pv -qL 40
+sed -i '/;cgi.fix_pathinfo=1/c\cgi.fix_pathinfo=0' /etc/php/7.0/fpm/php.ini
+systemctl restart php7.0-fpm
+
+
 
 
