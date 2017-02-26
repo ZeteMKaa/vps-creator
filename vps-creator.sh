@@ -98,8 +98,9 @@ function _setvim {
 	# Setting vim tweaks
 	echo -e "\n$ACTION Tweaking vim"| pv -qL 40
 
-	echo -e ":syntax on" > /root/.vimrc
-	echo -e ":color desert" >> /root/.vimrc
+	echo -e "syntax on" > /root/.vimrc
+	echo -e "colorscheme desert" >> /root/.vimrc
+	echo -e "set mouse-=a" >> /root/.vimrc
 }
 
 # Setting some additonal settings
